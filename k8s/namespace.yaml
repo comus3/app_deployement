@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: simple-api
+  labels:
+    name: simple-api
+    environment: development
