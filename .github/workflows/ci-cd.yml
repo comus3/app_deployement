@@ -105,8 +105,9 @@ jobs:
       if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
       run: |
         # Pull the image from registry and load it into the kind cluster
-        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        kind load docker-image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} --name test-cluster
+        # Use the 'latest' tag which is always available
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        kind load docker-image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest --name test-cluster
 
     - name: Deploy to Test Environment
       if: github.ref == 'refs/heads/develop'
@@ -121,7 +122,7 @@ jobs:
         kubectl apply -f k8s/deployment-test.yaml
         
         # Update the image in the deployment
-        kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n test
+        kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -n test
         
         # Wait for rollout to complete
         kubectl rollout status deployment/simple-api -n test --timeout=300s
@@ -143,7 +144,7 @@ jobs:
         kubectl apply -f k8s/deployment-prod.yaml
         
         # Update the image in the deployment
-        kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n production
+        kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -n production
         
         # Wait for rollout to complete
         kubectl rollout status deployment/simple-api -n production --timeout=300s
