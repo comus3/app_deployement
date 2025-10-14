@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: simple-api
-        image: ghcr.io/comus3/app_deployement:latest
+        image: your-docker-username/distributedproject:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 5000
