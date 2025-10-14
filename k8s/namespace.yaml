@@ -1,7 +1,15 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: simple-api
+  name: test
   labels:
-    name: simple-api
-    environment: development
+    name: test
+    environment: testing
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    name: production
+    environment: production
