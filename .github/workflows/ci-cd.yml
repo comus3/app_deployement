@@ -79,7 +79,6 @@ jobs:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-        scope: write:packages
 
     - name: Extract metadata
       id: meta
@@ -105,7 +104,8 @@ jobs:
     - name: Load image into kind cluster
       if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
       run: |
-        # Load the built image into the kind cluster
+        # Pull the image from registry and load it into the kind cluster
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         kind load docker-image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} --name test-cluster
 
     - name: Deploy to Test Environment
