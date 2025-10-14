@@ -51,6 +51,25 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set up Kubernetes cluster
+      run: |
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Install kind (Kubernetes in Docker)
+        curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+        chmod +x ./kind
+        sudo mv ./kind /usr/local/bin/kind
+        
+        # Create a kind cluster
+        kind create cluster --name test-cluster --wait 300s
+        
+        # Set kubeconfig
+        export KUBECONFIG=~/.kube/config
+        kind get kubeconfig --name test-cluster > ~/.kube/config
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -82,6 +101,12 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+
+    - name: Load image into kind cluster
+      if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+      run: |
+        # Load the built image into the kind cluster
+        kind load docker-image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} --name test-cluster
 
     - name: Deploy to Test Environment
       if: github.ref == 'refs/heads/develop'
