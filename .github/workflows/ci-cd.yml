@@ -87,14 +87,42 @@ jobs:
       if: github.ref == 'refs/heads/develop'
       run: |
         echo "Deploying to test environment..."
-        # This would typically use kubectl or helm to deploy to test
-        # For now, we'll just echo the deployment command
-        echo "kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n test"
+        echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        
+        # Create test namespace if it doesn't exist
+        kubectl create namespace test --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Apply the test deployment
+        kubectl apply -f k8s/deployment-test.yaml
+        
+        # Update the image in the deployment
+        kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n test
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/simple-api -n test --timeout=300s
+        
+        # Show deployment status
+        kubectl get pods -n test -l app=simple-api
+        echo "Test environment deployment completed!"
 
     - name: Deploy to Production Environment
       if: github.ref == 'refs/heads/main'
       run: |
         echo "Deploying to production environment..."
-        # This would typically use kubectl or helm to deploy to production
-        # For now, we'll just echo the deployment command
-        echo "kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n production"
+        echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        
+        # Create production namespace if it doesn't exist
+        kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Apply the production deployment
+        kubectl apply -f k8s/deployment-prod.yaml
+        
+        # Update the image in the deployment
+        kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n production
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/simple-api -n production --timeout=300s
+        
+        # Show deployment status
+        kubectl get pods -n production -l app=simple-api
+        echo "Production environment deployment completed!"

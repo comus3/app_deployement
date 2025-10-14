@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: simple-api
-        image: ghcr.io/your-username/your-repo:latest
+        image: ghcr.io/comus3/app_deployement:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 5000
