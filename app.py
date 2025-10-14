@@ -15,7 +15,7 @@ def hello_world():
     return jsonify({
         'message': 'Hello World!',
         'service': 'Simple Flask API',
-        'version': '1.0.0',
+        'version': '1.1.0',
         'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
         'pod': get_pod_name()
     })
@@ -48,6 +48,17 @@ def api_status():
         },
         'pod': get_pod_name(),
         'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+    })
+
+@app.route('/api/info')
+def api_info():
+    return jsonify({
+        'message': '🚀 Auto-deployment test endpoint!',
+        'version': '1.1.0',
+        'feature': 'Kubernetes CronJob deployment',
+        'pod': get_pod_name(),
+        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'deployment_method': 'GitHub Actions + Docker Hub + K8s CronJob'
     })
 
 if __name__ == '__main__':

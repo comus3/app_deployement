@@ -1,0 +1,123 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: auto-deploy-cronjob
+  namespace: test
+  labels:
+    app: auto-deploy
+    environment: test
+spec:
+  schedule: "*/2 * * * *"  # Every 2 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: auto-deploy
+            environment: test
+        spec:
+          serviceAccountName: auto-deploy-sa
+          containers:
+          - name: auto-deploy
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "🔍 Starting auto-deployment check..."
+              
+              # Configuration
+              DOCKER_USERNAME=${DOCKER_USERNAME:-"comus3"}
+              IMAGE_NAME="$DOCKER_USERNAME/distributedproject"
+              NAMESPACE="test"
+              DEPLOYMENT_NAME="simple-api"
+              
+              # Check for new image on Docker Hub
+              echo "🔍 Checking Docker Hub for new images..."
+              LATEST_DIGEST=$(curl -s "https://hub.docker.com/v2/repositories/$DOCKER_USERNAME/distributedproject/tags/latest/" | jq -r '.digest' 2>/dev/null || echo "")
+              
+              if [ -z "$LATEST_DIGEST" ] || [ "$LATEST_DIGEST" = "null" ]; then
+                echo "❌ Failed to get image digest from Docker Hub"
+                exit 1
+              fi
+              
+              echo "📦 Latest image digest: $LATEST_DIGEST"
+              
+              # Get current deployment image
+              CURRENT_IMAGE=$(kubectl get deployment $DEPLOYMENT_NAME -n $NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
+              
+              if [ -z "$CURRENT_IMAGE" ]; then
+                echo "❌ Deployment $DEPLOYMENT_NAME not found in namespace $NAMESPACE"
+                exit 1
+              fi
+              
+              echo "📋 Current deployment image: $CURRENT_IMAGE"
+              
+              # Check if we need to update
+              if echo "$CURRENT_IMAGE" | grep -q "$LATEST_DIGEST"; then
+                echo "✅ Deployment is up to date"
+                exit 0
+              fi
+              
+              echo "🆕 New image detected! Updating deployment..."
+              
+              # Update deployment with new image
+              kubectl set image deployment/$DEPLOYMENT_NAME $DEPLOYMENT_NAME=$IMAGE_NAME:latest -n $NAMESPACE
+              
+              # Wait for rollout to complete
+              echo "⏳ Waiting for rollout to complete..."
+              kubectl rollout status deployment/$DEPLOYMENT_NAME -n $NAMESPACE --timeout=300s
+              
+              # Verify deployment
+              echo "📊 Deployment status:"
+              kubectl get pods -n $NAMESPACE -l app=$DEPLOYMENT_NAME
+              
+              echo "✅ Auto-deployment completed successfully!"
+            env:
+            - name: DOCKER_USERNAME
+              value: "comus3"
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "50m"
+              limits:
+                memory: "128Mi"
+                cpu: "100m"
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: auto-deploy-sa
+  namespace: test
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: test
+  name: auto-deploy-role
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: auto-deploy-rolebinding
+  namespace: test
+subjects:
+- kind: ServiceAccount
+  name: auto-deploy-sa
+  namespace: test
+roleRef:
+  kind: Role
+  name: auto-deploy-role
+  apiGroup: rbac.authorization.k8s.io
