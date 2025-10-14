@@ -8,7 +8,7 @@ metadata:
     version: v1.0.0
     environment: test
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: simple-api
