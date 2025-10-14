@@ -7,9 +7,9 @@ set -e
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_FILE="/tmp/k8s-cron.log"
+LOG_FILE="/home/comus3/k8s-cron.log"
 LAST_IMAGE_FILE="/tmp/last-deployed-image.txt"
-DOCKER_USERNAME=${DOCKER_USERNAME:-"your-docker-username"}
+DOCKER_USERNAME=${DOCKER_USERNAME:-"comus3"}
 IMAGE_NAME="$DOCKER_USERNAME/distributedproject"
 
 # Logging function
@@ -45,8 +45,8 @@ if [ -n "$LATEST_DIGEST" ] && [ "$LATEST_DIGEST" != "null" ]; then
         if docker pull "$IMAGE_NAME:latest"; then
             log "✅ Successfully pulled latest image"
             
-            # Deploy to test environment
-            if "$SCRIPT_DIR/local-deploy.sh" test latest; then
+        # Deploy to test environment
+        if sudo -E "$SCRIPT_DIR/local-deploy.sh" test latest; then
                 log "✅ Test environment deployment successful"
                 
                 # Update the last deployed image record

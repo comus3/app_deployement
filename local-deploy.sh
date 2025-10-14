@@ -9,14 +9,16 @@ set -e
 # Configuration
 ENVIRONMENT=${1:-test}
 IMAGE_TAG=${2:-latest}
-DOCKER_USERNAME=${DOCKER_USERNAME:-"your-docker-username"}
+DOCKER_USERNAME=${DOCKER_USERNAME:-"comus3"}
 IMAGE_NAME="$DOCKER_USERNAME/distributedproject"
 NAMESPACE=$ENVIRONMENT
 LOG_FILE="/tmp/k8s-deploy.log"
+# Ensure log file is writable
+touch "$LOG_FILE" 2>/dev/null || true
 
 # Logging function
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE" 2>/dev/null || echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
 log "🔍 Checking for new image: $IMAGE_NAME:$IMAGE_TAG"
@@ -26,6 +28,27 @@ if ! command -v kubectl &> /dev/null; then
     log "❌ kubectl not found. Please install kubectl first."
     exit 1
 fi
+
+# Set kubectl context to minikube
+export KUBECONFIG=/home/comus3/.kube/config
+log "🔧 Setting kubectl context to minikube"
+if ! kubectl config use-context minikube; then
+    log "❌ Failed to set kubectl context to minikube"
+    log "🔍 Available contexts:"
+    kubectl config get-contexts || log "❌ Cannot list contexts"
+    exit 1
+fi
+
+# Test kubectl connection
+log "🔍 Testing kubectl connection..."
+if ! kubectl get nodes; then
+    log "❌ Cannot connect to Kubernetes cluster"
+    log "🔍 kubectl config current-context: $(kubectl config current-context)"
+    log "🔍 kubectl config view:"
+    kubectl config view || log "❌ Cannot view kubectl config"
+    exit 1
+fi
+log "✅ kubectl connection successful"
 
 # Check if the image exists locally
 if ! docker image inspect "$IMAGE_NAME:$IMAGE_TAG" &> /dev/null; then
