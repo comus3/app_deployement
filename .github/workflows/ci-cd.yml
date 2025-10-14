@@ -11,8 +11,7 @@ permissions:
   packages: write
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
 jobs:
   test:
@@ -50,104 +49,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Kubernetes cluster
-      run: |
-        # Install kubectl
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        chmod +x kubectl
-        sudo mv kubectl /usr/local/bin/
-        
-        # Install kind (Kubernetes in Docker)
-        curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
-        chmod +x ./kind
-        sudo mv ./kind /usr/local/bin/kind
-        
-        # Create a kind cluster
-        kind create cluster --name test-cluster --wait 300s
-        
-        # Set kubeconfig
-        export KUBECONFIG=~/.kube/config
-        kind get kubeconfig --name test-cluster > ~/.kube/config
+    # Kubernetes cluster setup removed - using local cron job for deployment
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Container Registry
+    - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Load image into kind cluster
-      if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
       run: |
-        # Pull the image from registry and load it into the kind cluster
-        # Use the 'latest' tag which is always available
-        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-        kind load docker-image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest --name test-cluster
+        IMAGE_TAG=$(date +'%Y%m%d-%H%M')
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/distributedproject:$IMAGE_TAG -f Dockerfile .
+        docker push ${{ secrets.DOCKER_USERNAME }}/distributedproject:$IMAGE_TAG
+        docker tag ${{ secrets.DOCKER_USERNAME }}/distributedproject:$IMAGE_TAG ${{ secrets.DOCKER_USERNAME }}/distributedproject:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/distributedproject:latest
 
-    - name: Deploy to Test Environment
-      if: github.ref == 'refs/heads/develop'
+    - name: Notify deployment ready
       run: |
-        echo "Deploying to test environment..."
-        echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-        
-        # Create test namespace if it doesn't exist
-        kubectl create namespace test --dry-run=client -o yaml | kubectl apply -f -
-        
-        # Apply the test deployment
-        kubectl apply -f k8s/deployment-test.yaml
-        
-        # Update the image in the deployment
-        kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -n test
-        
-        # Wait for rollout to complete
-        kubectl rollout status deployment/simple-api -n test --timeout=300s
-        
-        # Show deployment status
-        kubectl get pods -n test -l app=simple-api
-        echo "Test environment deployment completed!"
-
-    - name: Deploy to Production Environment
-      if: github.ref == 'refs/heads/main'
-      run: |
-        echo "Deploying to production environment..."
-        echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-        
-        # Create production namespace if it doesn't exist
-        kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
-        
-        # Apply the production deployment
-        kubectl apply -f k8s/deployment-prod.yaml
-        
-        # Update the image in the deployment
-        kubectl set image deployment/simple-api simple-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -n production
-        
-        # Wait for rollout to complete
-        kubectl rollout status deployment/simple-api -n production --timeout=300s
-        
-        # Show deployment status
-        kubectl get pods -n production -l app=simple-api
-        echo "Production environment deployment completed!"
+        IMAGE_TAG=$(date +'%Y%m%d-%H%M')
+        echo "✅ Build completed successfully!"
+        echo "📦 Image pushed to Docker Hub: ${{ secrets.DOCKER_USERNAME }}/distributedproject:$IMAGE_TAG"
+        echo "📦 Latest image: ${{ secrets.DOCKER_USERNAME }}/distributedproject:latest"
+        echo "🔄 Local cron job will handle deployment to Kubernetes cluster"
+        echo "📋 Image details:"
+        echo "   - Registry: Docker Hub"
+        echo "   - Repository: ${{ secrets.DOCKER_USERNAME }}/distributedproject"
+        echo "   - Tag: $IMAGE_TAG"
+        echo "   - Latest: latest"
+        echo "   - Commit: ${{ github.sha }}"

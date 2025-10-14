@@ -8,7 +8,8 @@ set -e
 ENVIRONMENT=${1:-test}
 IMAGE_TAG=${2:-latest}
 NAMESPACE=$ENVIRONMENT
-IMAGE_NAME="ghcr.io/comus3/app_deployement"
+DOCKER_USERNAME=${DOCKER_USERNAME:-"your-docker-username"}
+IMAGE_NAME="$DOCKER_USERNAME/distributedproject"
 
 echo "Deploying to $ENVIRONMENT environment with image tag: $IMAGE_TAG"
 
