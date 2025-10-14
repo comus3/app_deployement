@@ -21,7 +21,7 @@ class TestApp:
         data = json.loads(response.data)
         assert data['message'] == 'Hello World!'
         assert data['service'] == 'Simple Flask API'
-        assert data['version'] == '1.0.0'
+        assert data['version'] == '1.1.0'
         assert 'timestamp' in data
         assert 'pod' in data
 
@@ -97,9 +97,22 @@ class TestApp:
         response = client.get('/nonexistent')
         assert response.status_code == 404
 
+    def test_api_info(self, client):
+        """Test the new API info endpoint."""
+        response = client.get('/api/info')
+        assert response.status_code == 200
+        
+        data = json.loads(response.data)
+        assert data['message'] == '🚀 Auto-deployment test endpoint!'
+        assert data['version'] == '1.1.0'
+        assert data['feature'] == 'Kubernetes CronJob deployment'
+        assert data['deployment_method'] == 'GitHub Actions + Docker Hub + K8s CronJob'
+        assert 'pod' in data
+        assert 'timestamp' in data
+
     def test_json_response_format(self, client):
         """Test that all endpoints return valid JSON."""
-        endpoints = ['/', '/health', '/api/hello', '/api/status']
+        endpoints = ['/', '/health', '/api/hello', '/api/status', '/api/info']
         
         for endpoint in endpoints:
             response = client.get(endpoint)
