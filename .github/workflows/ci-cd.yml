@@ -71,11 +71,11 @@ jobs:
     - name: Notify deployment ready
       run: |
         IMAGE_TAG=$(date +'%Y%m%d-%H%M')
-        echo "✅ Build completed successfully!"
-        echo "📦 Image pushed to Docker Hub: ${{ secrets.DOCKER_USERNAME }}/distributedproject:$IMAGE_TAG"
-        echo "📦 Latest image: ${{ secrets.DOCKER_USERNAME }}/distributedproject:latest"
-        echo "🔄 Local cron job will handle deployment to Kubernetes cluster"
-        echo "📋 Image details:"
+        echo "Build completed successfully!"
+        echo "Image pushed to Docker Hub: ${{ secrets.DOCKER_USERNAME }}/distributedproject:$IMAGE_TAG"
+        echo "atest image: ${{ secrets.DOCKER_USERNAME }}/distributedproject:latest"
+        echo "Local cron job will handle deployment to Kubernetes cluster"
+        echo "Image details:"
         echo "   - Registry: Docker Hub"
         echo "   - Repository: ${{ secrets.DOCKER_USERNAME }}/distributedproject"
         echo "   - Tag: $IMAGE_TAG"
