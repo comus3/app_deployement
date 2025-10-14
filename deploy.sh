@@ -8,6 +8,7 @@ set -e
 ENVIRONMENT=${1:-test}
 IMAGE_TAG=${2:-latest}
 NAMESPACE=$ENVIRONMENT
+IMAGE_NAME="ghcr.io/comus3/app_deployement"
 
 echo "Deploying to $ENVIRONMENT environment with image tag: $IMAGE_TAG"
 
@@ -16,11 +17,11 @@ kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f 
 
 # Update the deployment with the new image
 if [ "$ENVIRONMENT" = "test" ]; then
-    kubectl set image deployment/simple-api simple-api=ghcr.io/your-username/your-repo:$IMAGE_TAG -n $NAMESPACE
+    kubectl set image deployment/simple-api simple-api=$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE
     kubectl apply -f k8s/deployment-test.yaml
     kubectl apply -f k8s/service.yaml
 elif [ "$ENVIRONMENT" = "prod" ]; then
-    kubectl set image deployment/simple-api simple-api=ghcr.io/your-username/your-repo:$IMAGE_TAG -n $NAMESPACE
+    kubectl set image deployment/simple-api simple-api=$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE
     kubectl apply -f k8s/deployment-prod.yaml
     kubectl apply -f k8s/service.yaml
     kubectl apply -f k8s/ingress.yaml
