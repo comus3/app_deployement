@@ -2,13 +2,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: notes-app
-  namespace: test
+  namespace: dev
   labels:
     app: notes-app
     version: v1.0.0
-    environment: test
+    environment: dev
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: notes-app
@@ -17,12 +17,12 @@ spec:
       labels:
         app: notes-app
         version: v1.0.0
-        environment: test
+        environment: dev
     spec:
       containers:
       - name: notes-app
         image: comus3/distributedproject:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
           name: http
@@ -30,20 +30,22 @@ spec:
         - name: PORT
           value: "5000"
         - name: FLASK_ENV
-          value: "test"
+          value: "development"
+        - name: FLASK_DEBUG
+          value: "1"
         - name: MONGO_URI
-          value: "mongodb://mongos.test.svc.cluster.local:27017"
+          value: "mongodb://mongos.dev.svc.cluster.local:27017"
         - name: REDIS_HOST
-          value: "redis-master.test.svc.cluster.local"
+          value: "redis-master.dev.svc.cluster.local"
         - name: REDIS_PORT
           value: "6379"
         resources:
           requests:
-            memory: "64Mi"
-            cpu: "50m"
-          limits:
             memory: "128Mi"
             cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
         livenessProbe:
           httpGet:
             path: /health
@@ -61,3 +63,4 @@ spec:
           timeoutSeconds: 3
           failureThreshold: 3
       restartPolicy: Always
+

@@ -1,0 +1,102 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-mongo
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: mongo-init-sa
+      containers:
+        - name: init-mongo
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+              echo "Initialising MongoDB Sharded Cluster in namespace: $NAMESPACE"
+
+              kubectl wait --for=condition=ready pod -l role=configsvr -n $NAMESPACE --timeout=600s
+              kubectl wait --for=condition=ready pod -l shard=shard1 -n $NAMESPACE --timeout=600s
+              kubectl wait --for=condition=ready pod -l shard=shard2 -n $NAMESPACE --timeout=600s
+              kubectl wait --for=condition=available deployment/mongos -n $NAMESPACE --timeout=600s
+
+              echo "Initiating replica sets..."
+
+              echo "Waiting for mongodb-configsvr-0 (port 27019) to be connectable..."
+              until kubectl exec mongodb-configsvr-0 -n $NAMESPACE -- mongosh --port 27019 --eval "db.adminCommand('ping')" > /dev/null 2>&1
+              do
+                echo "..."
+                sleep 2
+              done
+              echo "mongodb-configsvr-0 is ready."
+
+              kubectl exec mongodb-configsvr-0 -n $NAMESPACE -- mongosh --port 27019 --eval "
+              rs.initiate({
+                _id: 'rs-config',
+                configsvr: true,
+                members: [
+                  { _id: 0, host: \"mongodb-configsvr-0.mongodb-configsvr.${NAMESPACE}.svc.cluster.local:27019\" }
+                ]
+              });
+              "
+
+              echo "Waiting for mongodb-shard1-0 (port 27018) to be connectable..."
+              until kubectl exec mongodb-shard1-0 -n $NAMESPACE -- mongosh --port 27018 --eval "db.adminCommand('ping')" > /dev/null 2>&1
+              do
+                echo "..."
+                sleep 2
+              done
+              echo "mongodb-shard1-0 is ready."
+
+              kubectl exec mongodb-shard1-0 -n $NAMESPACE -- mongosh --port 27018 --eval "
+              rs.initiate({
+                _id: 'rs-shard1',
+                members: [
+                  { _id: 0, host: \"mongodb-shard1-0.mongodb-shard1.${NAMESPACE}.svc.cluster.local:27018\" },
+                  { _id: 1, host: \"mongodb-shard1-1.mongodb-shard1.${NAMESPACE}.svc.cluster.local:27018\" }
+                ]
+              });
+              "
+
+              echo "Waiting for mongodb-shard2-0 (port 27018) to be connectable..."
+              until kubectl exec mongodb-shard2-0 -n $NAMESPACE -- mongosh --port 27018 --eval "db.adminCommand('ping')" > /dev/null 2>&1
+              do
+                echo "..."
+                sleep 2
+              done
+              echo "mongodb-shard2-0 is ready."
+
+              kubectl exec mongodb-shard2-0 -n $NAMESPACE -- mongosh --port 27018 --eval "
+              rs.initiate({
+                _id: 'rs-shard2',
+                members: [
+                  { _id: 0, host: \"mongodb-shard2-0.mongodb-shard2.${NAMESPACE}.svc.cluster.local:27018\" },
+                  { _id: 1, host: \"mongodb-shard2-1.mongodb-shard2.${NAMESPACE}.svc.cluster.local:27018\" }
+                ]
+              });
+              "
+
+              echo "Waiting 10s for replica sets to elect primaries..."
+              sleep 10
+                              
+              MONGOS_POD=$(kubectl get pods -n $NAMESPACE -l role=mongos -o jsonpath="{.items[0].metadata.name}")
+              kubectl wait --for=condition=ready pod/$MONGOS_POD -n $NAMESPACE --timeout=120s
+
+              echo "Waiting for mongos ($MONGOS_POD) (port 27017) to be connectable..."
+              until kubectl exec $MONGOS_POD -n $NAMESPACE -- mongosh --port 27017 --eval "db.adminCommand('ping')" > /dev/null 2>&1
+              do
+                echo "..."
+                sleep 2
+              done
+              echo "mongos is ready."
+
+              kubectl exec $MONGOS_POD -n $NAMESPACE -- mongosh --port 27017 --eval "
+              sh.addShard('rs-shard1/mongodb-shard1-0.mongodb-shard1.${NAMESPACE}.svc.cluster.local:27018');
+              sh.addShard('rs-shard2/mongodb-shard2-0.mongodb-shard2.${NAMESPACE}.svc.cluster.local:27018');
+              sh.enableSharding('notes_app');
+              "
+

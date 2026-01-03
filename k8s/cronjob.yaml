@@ -34,7 +34,7 @@ spec:
               DOCKER_USERNAME=${DOCKER_USERNAME:-"comus3"}
               IMAGE_NAME="$DOCKER_USERNAME/distributedproject"
               NAMESPACE="test"
-              DEPLOYMENT_NAME="simple-api"
+              DEPLOYMENT_NAME="notes-app"
               
               # Check for new image on Docker Hub
               echo "🔍 Checking Docker Hub for new images..."

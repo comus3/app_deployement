@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: image-watcher-sa
+  namespace: test
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: image-watcher-role
+  namespace: test
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: image-watcher-rb
+  namespace: test
+subjects:
+  - kind: ServiceAccount
+    name: image-watcher-sa
+    namespace: test
+roleRef:
+  kind: Role
+  name: image-watcher-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-watcher-script
+  namespace: test
+data:
+  watch.sh: |
+    #!/usr/bin/env sh
+    set -euf
+
+    : "${DOCKERHUB_OWNER:?missing}"
+    : "${DOCKERHUB_REPO:?missing}"
+    : "${DEPLOYMENT_NAME:?missing}"
+    : "${CONTAINER_NAME:?missing}"
+    : "${NAMESPACE:?missing}"
+
+    REPO_PATH="${DOCKERHUB_OWNER}/${DOCKERHUB_REPO}"
+
+    get_token() {
+      if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_PASSWORD:-}" ]; then
+        curl -fsSL "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${REPO_PATH}:pull" \
+          -u "${DOCKERHUB_USERNAME}:${DOCKERHUB_PASSWORD}" | jq -r '.token'
+      else
+        curl -fsSL "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${REPO_PATH}:pull" \
+          | jq -r '.token'
+      fi
+    }
+
+    # Look for 'build-123' style tags or 'latest'
+    get_latest_build_tag() {
+      TOKEN="$(get_token)"
+      # Try to get build-* tags first, fallback to latest
+      BUILD_TAG=$(curl -fsSL -H "Accept: application/json" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        "https://registry-1.docker.io/v2/${REPO_PATH}/tags/list" \
+        | jq -r '.tags[]' | grep -E '^build-[0-9]+$' | sort -t- -k2 -nr | head -n 1)
+      
+      if [ -n "${BUILD_TAG}" ]; then
+        echo "${BUILD_TAG}"
+      else
+        echo "latest"
+      fi
+    }
+
+    get_current_tag_from_annotation() {
+      kubectl -n "${NAMESPACE}" get deploy "${DEPLOYMENT_NAME}" \
+        -o jsonpath='{.metadata.annotations.imageVersion}' 2>/dev/null || echo "latest"
+    }
+
+    update_deployment() {
+      NEW_TAG="$1"
+      NEW_IMAGE="${REPO_PATH}:${NEW_TAG}"
+
+      echo "[watcher] Patching deployment image to ${NEW_IMAGE}"
+      
+      kubectl -n "${NAMESPACE}" set image deployment/"${DEPLOYMENT_NAME}" \
+        "${CONTAINER_NAME}=${NEW_IMAGE}"
+      
+      kubectl -n "${NAMESPACE}" annotate deploy "${DEPLOYMENT_NAME}" \
+        imageVersion="${NEW_TAG}" --overwrite
+
+      echo "[watcher] Waiting for rollout to complete..."
+      kubectl -n "${NAMESPACE}" rollout status deploy "${DEPLOYMENT_NAME}" --timeout=180s
+    }
+
+    echo "[watcher] Checking for new tags on ${REPO_PATH} for ${NAMESPACE}/${DEPLOYMENT_NAME}"
+
+    LATEST_REMOTE_TAG="$(get_latest_build_tag || echo "latest")"
+    CURRENT_LOCAL_TAG="$(get_current_tag_from_annotation || echo "latest")"
+
+    echo "[watcher] Remote latest tag: ${LATEST_REMOTE_TAG}"
+    echo "[watcher] Current tag:       ${CURRENT_LOCAL_TAG}"
+
+    if [ "${LATEST_REMOTE_TAG}" != "${CURRENT_LOCAL_TAG}" ]; then
+      echo "[watcher] New version found. Updating deployment..."
+      update_deployment "${LATEST_REMOTE_TAG}"
+    else
+      echo "[watcher] Up-to-date. Nothing to do."
+    fi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: image-watcher
+  namespace: test
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: image-watcher-sa
+          restartPolicy: OnFailure
+          containers:
+            - name: watcher
+              image: alpine:3.20
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: DOCKERHUB_OWNER
+                  value: "comus3"
+                - name: DOCKERHUB_REPO
+                  value: "distributedproject"
+                - name: DEPLOYMENT_NAME
+                  value: "notes-app"
+                - name: CONTAINER_NAME
+                  value: "notes-app"
+                - name: NAMESPACE
+                  value: "test"
+              volumeMounts:
+                - name: script
+                  mountPath: /opt/script
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  apk add --no-cache curl bash ca-certificates jq >/dev/null
+                  
+                  KUBECTL_VER=$(curl -fsSL https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+                  curl -fsSL -o /usr/local/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VER}/bin/linux/amd64/kubectl
+                  chmod +x /usr/local/bin/kubectl
+                  
+                  /opt/script/watch.sh
+          volumes:
+            - name: script
+              configMap:
+                name: image-watcher-script
+                defaultMode: 0755
+

@@ -1,26 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: simple-api
+  name: notes-app
   namespace: production
   labels:
-    app: simple-api
+    app: notes-app
     version: v1.0.0
     environment: production
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: simple-api
+      app: notes-app
   template:
     metadata:
       labels:
-        app: simple-api
+        app: notes-app
         version: v1.0.0
         environment: production
     spec:
       containers:
-      - name: simple-api
+      - name: notes-app
         image: comus3/distributedproject:latest
         imagePullPolicy: Always
         ports:
@@ -31,6 +31,12 @@ spec:
           value: "5000"
         - name: FLASK_ENV
           value: "production"
+        - name: MONGO_URI
+          value: "mongodb://mongos.production.svc.cluster.local:27017"
+        - name: REDIS_HOST
+          value: "redis-master.production.svc.cluster.local"
+        - name: REDIS_PORT
+          value: "6379"
         resources:
           requests:
             memory: "128Mi"

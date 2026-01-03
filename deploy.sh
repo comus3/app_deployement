@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Deployment script for Kubernetes environments
-# Usage: ./deploy.sh [test|prod] [image-tag]
+# Usage: ./deploy.sh [dev|test|prod] [image-tag]
 
 set -e
 
@@ -17,27 +17,31 @@ echo "Deploying to $ENVIRONMENT environment with image tag: $IMAGE_TAG"
 kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
 
 # Update the deployment with the new image
-if [ "$ENVIRONMENT" = "test" ]; then
-    kubectl set image deployment/simple-api simple-api=$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE
+if [ "$ENVIRONMENT" = "dev" ]; then
+    kubectl set image deployment/notes-app notes-app=$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE
+    kubectl apply -f k8s/deployment-dev.yaml
+    kubectl apply -f k8s/service.yaml
+elif [ "$ENVIRONMENT" = "test" ]; then
+    kubectl set image deployment/notes-app notes-app=$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE
     kubectl apply -f k8s/deployment-test.yaml
     kubectl apply -f k8s/service.yaml
 elif [ "$ENVIRONMENT" = "prod" ]; then
-    kubectl set image deployment/simple-api simple-api=$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE
+    kubectl set image deployment/notes-app notes-app=$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE
     kubectl apply -f k8s/deployment-prod.yaml
     kubectl apply -f k8s/service.yaml
     kubectl apply -f k8s/ingress.yaml
 else
-    echo "Invalid environment. Use 'test' or 'prod'"
+    echo "Invalid environment. Use 'dev', 'test', or 'prod'"
     exit 1
 fi
 
 # Wait for deployment to complete
 echo "Waiting for deployment to complete..."
-kubectl rollout status deployment/simple-api -n $NAMESPACE --timeout=300s
+kubectl rollout status deployment/notes-app -n $NAMESPACE --timeout=300s
 
 # Show deployment status
 echo "Deployment completed. Status:"
-kubectl get pods -n $NAMESPACE -l app=simple-api
+kubectl get pods -n $NAMESPACE -l app=notes-app
 kubectl get services -n $NAMESPACE
 
 echo "Deployment to $ENVIRONMENT environment completed successfully!"

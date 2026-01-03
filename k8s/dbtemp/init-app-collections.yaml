@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-app-collections
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: init-app
+          image: python:3.11-slim
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "⏳ Installing pymongo..."
+              pip install --no-cache-dir pymongo >/dev/null
+              echo "▶️  Running init_app.py"
+              python /init/init_app.py
+          volumeMounts:
+            - name: init-script
+              mountPath: /init
+      volumes:
+        - name: init-script
+          configMap:
+            name: init-app-script
+            items:
+              - key: init_app.py
+                path: init_app.py
+

@@ -69,7 +69,11 @@ if ! kubectl get namespace "$NAMESPACE" &> /dev/null; then
 fi
 
 # Apply the appropriate deployment
-if [ "$ENVIRONMENT" = "test" ]; then
+if [ "$ENVIRONMENT" = "dev" ]; then
+    log "🚀 Deploying to dev environment"
+    kubectl apply -f k8s/deployment-dev.yaml
+    kubectl apply -f k8s/service.yaml
+elif [ "$ENVIRONMENT" = "test" ]; then
     log "🚀 Deploying to test environment"
     kubectl apply -f k8s/deployment-test.yaml
     kubectl apply -f k8s/service.yaml
@@ -79,17 +83,17 @@ elif [ "$ENVIRONMENT" = "prod" ]; then
     kubectl apply -f k8s/service.yaml
     kubectl apply -f k8s/ingress.yaml
 else
-    log "❌ Invalid environment. Use 'test' or 'prod'"
+    log "❌ Invalid environment. Use 'dev', 'test', or 'prod'"
     exit 1
 fi
 
 # Update the image in the deployment
 log "🔄 Updating deployment with new image"
-kubectl set image deployment/simple-api simple-api="$IMAGE_NAME:$IMAGE_TAG" -n "$NAMESPACE"
+kubectl set image deployment/notes-app notes-app="$IMAGE_NAME:$IMAGE_TAG" -n "$NAMESPACE"
 
 # Wait for rollout to complete
 log "⏳ Waiting for rollout to complete..."
-if kubectl rollout status deployment/simple-api -n "$NAMESPACE" --timeout=300s; then
+if kubectl rollout status deployment/notes-app -n "$NAMESPACE" --timeout=300s; then
     log "✅ Rollout completed successfully"
 else
     log "❌ Rollout failed or timed out"
@@ -98,7 +102,7 @@ fi
 
 # Show deployment status
 log "📊 Deployment status:"
-kubectl get pods -n "$NAMESPACE" -l app=simple-api
+kubectl get pods -n "$NAMESPACE" -l app=notes-app
 
 # Show service status
 log "🌐 Service status:"

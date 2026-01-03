@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}All Notes{% endblock %}
+{% block content %}
+<h2>All Notes</h2>
+
+{% if notes %}
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Title</th>
+            <th>Content</th>
+            <th>Created At</th>
+            <th>Version</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for note in notes %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ note.title }}</strong></td>
+            <td>{{ note.content[:100] }}{% if note.content|length > 100 %}...{% endif %}</td>
+            <td>{{ note.created_at }}</td>
+            <td>{{ note.version or 'N/A' }}</td>
+            <td>
+                <a href="/stats/{{ note._id }}" class="btn">View Details</a>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No notes found yet.</p>
+{% endif %}
+{% endblock %}
+

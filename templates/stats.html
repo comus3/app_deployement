@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Details for {{ note.title }}{% endblock %}
+{% block content %}
+<h2>📊 Note Details: <code>{{ note.title }}</code></h2>
+<p><strong>Note ID:</strong> {{ note._id }}</p>
+<p><strong>Content:</strong> {{ note.content }}</p>
+<p><strong>Created At:</strong> {{ note.created_at }}</p>
+{% if note.version %}
+<p><strong>Version:</strong> {{ note.version }}</p>
+{% endif %}
+
+<a href="/links" class="back-link">← Back to all notes</a>
+{% endblock %}
+

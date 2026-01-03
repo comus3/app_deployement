@@ -1,0 +1,176 @@
+# MongoDB Deployment for Notes App
+# Simple MongoDB setup (can be extended to sharded/replicated later)
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: dev
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  selector:
+    app: mongodb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: dev
+  labels:
+    app: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7.0
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: "notes_app"
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+      volumes:
+      - name: mongodb-data
+        persistentVolumeClaim:
+          claimName: mongodb-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc
+  namespace: dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+# MongoDB for Test environment
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: test
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  selector:
+    app: mongodb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: test
+  labels:
+    app: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7.0
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: "notes_app"
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+      volumes:
+      - name: mongodb-data
+        persistentVolumeClaim:
+          claimName: mongodb-pvc-test
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc-test
+  namespace: test
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+# MongoDB for Production environment
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: production
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  selector:
+    app: mongodb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: production
+  labels:
+    app: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7.0
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: "notes_app"
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+      volumes:
+      - name: mongodb-data
+        persistentVolumeClaim:
+          claimName: mongodb-pvc-prod
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc-prod
+  namespace: production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Create Note{% endblock %}
+{% block content %}
+<h2>Create a new Note</h2>
+<form id="note-form">
+    <label for="title">Title:</label><br>
+    <input type="text" id="title" name="title" required style="width: 80%; padding: 8px; margin-bottom: 10px;"><br>
+    <label for="content">Content:</label><br>
+    <textarea id="content" name="content" required style="width: 80%; padding: 8px; min-height: 100px;"></textarea><br>
+    <button type="submit" class="btn">Create Note</button>
+</form>
+<hr>
+<h3>🔧 Database Migration Demo</h3>
+<p>This will add a new field <code>version = "1.0"</code> to all notes that don't have it.</p>
+<button class="btn" onclick="runMigration()">Run Migration</button>
+<button class="btn" style="background:#007bff;" onclick="checkMigrationStatus()">Check Status</button>
+<div id="migration-result" style="margin-top:10px;"></div>
+
+<script>
+async function runMigration() {
+    const div = document.getElementById("migration-result");
+    div.innerHTML = "⏳ Running migration...";
+    try {
+        const res = await fetch("/run_migration", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+            div.innerHTML = `<strong style="color:green;">${data.message}</strong>`;
+        } else {
+            div.innerHTML = `<strong style="color:red;">Error:</strong> ${data.error}`;
+        }
+    } catch (err) {
+        div.innerHTML = `<strong style="color:red;">${err.message}</strong>`;
+    }
+}
+
+async function checkMigrationStatus() {
+    const div = document.getElementById("migration-result");
+    div.innerHTML = "⏳ Checking...";
+    try {
+        const res = await fetch("/api/migration_status");
+        const data = await res.json();
+        div.innerHTML = `
+            <strong>Total notes:</strong> ${data.total_notes}<br>
+            <strong>Migrated:</strong> ${data.migrated_notes}<br>
+            <strong>Pending:</strong> ${data.pending}
+        `;
+    } catch (err) {
+        div.innerHTML = `<strong style="color:red;">${err.message}</strong>`;
+    }
+}
+</script>
+
+
+<div id="result" style="margin-top: 20px;"></div>
+
+<script>
+document.getElementById("note-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = document.getElementById("title").value;
+    const content = document.getElementById("content").value;
+    const resultDiv = document.getElementById("result");
+
+    resultDiv.innerHTML = "Processing...";
+    try {
+        const res = await fetch("/api/notes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: title, content: content })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            resultDiv.innerHTML = `
+                <p><strong>Note created successfully!</strong></p>
+                <p><strong>Note ID:</strong> ${data.note_id}</p>
+                <p><a href="/links" class="btn">View All Notes</a></p>`;
+            document.getElementById("note-form").reset();
+        } else {
+            resultDiv.innerHTML = `<span style="color:red;">Error: ${data.error || 'Unknown error'}</span>`;
+        }
+    } catch (err) {
+        resultDiv.innerHTML = `<span style="color:red;">${err.message}</span>`;
+    }
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,229 @@
+# Redis with master-replica setup for caching
+
+# Redis Master Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-master
+  namespace: dev
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: redis
+    role: master
+---
+# Redis Master Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-master
+  namespace: dev
+  labels:
+    app: redis
+    role: master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      role: master
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: master
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2
+        ports:
+        - containerPort: 6379
+        command: ["redis-server", "--appendonly", "yes"]
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc-dev
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc-dev
+  namespace: dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Redis Replica Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-replica
+  namespace: dev
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: redis
+    role: replica
+---
+# Redis Replica Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-replica
+  namespace: dev
+  labels:
+    app: redis
+    role: replica
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      role: replica
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: replica
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2
+        ports:
+        - containerPort: 6379
+        command:
+          [
+            "redis-server",
+            "--replicaof",
+            "redis-master.dev.svc.cluster.local",
+            "6379",
+            "--appendonly",
+            "yes"
+          ]
+---
+# Redis for Test environment
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-master
+  namespace: test
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: redis
+    role: master
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-master
+  namespace: test
+  labels:
+    app: redis
+    role: master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      role: master
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: master
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2
+        ports:
+        - containerPort: 6379
+        command: ["redis-server", "--appendonly", "yes"]
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc-test
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc-test
+  namespace: test
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Redis for Production environment
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-master
+  namespace: production
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: redis
+    role: master
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-master
+  namespace: production
+  labels:
+    app: redis
+    role: master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      role: master
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: master
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2
+        ports:
+        - containerPort: 6379
+        command: ["redis-server", "--appendonly", "yes"]
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc-prod
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc-prod
+  namespace: production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+

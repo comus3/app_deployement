@@ -1,9 +1,61 @@
+# Ingress for Dev environment
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: simple-api-ingress
+  name: notes-app-ingress-dev
+  namespace: dev
   labels:
-    app: simple-api
+    app: notes-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: dev.localhost
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: notes-app-service
+            port:
+              number: 80
+---
+# Ingress for Test environment
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notes-app-ingress-test
+  namespace: test
+  labels:
+    app: notes-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: test.localhost
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: notes-app-service
+            port:
+              number: 80
+---
+# Ingress for Production environment
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notes-app-ingress-prod
+  namespace: production
+  labels:
+    app: notes-app
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
@@ -17,6 +69,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: simple-api-service
+            name: notes-app-service
             port:
               number: 80

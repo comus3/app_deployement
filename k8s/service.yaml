@@ -1,10 +1,11 @@
+# Service for Dev environment
 apiVersion: v1
 kind: Service
 metadata:
-  name: simple-api-service
-  namespace: test
+  name: notes-app-service
+  namespace: dev
   labels:
-    app: simple-api
+    app: notes-app
 spec:
   type: ClusterIP
   ports:
@@ -13,4 +14,40 @@ spec:
     protocol: TCP
     name: http
   selector:
-    app: simple-api
+    app: notes-app
+---
+# Service for Test environment
+apiVersion: v1
+kind: Service
+metadata:
+  name: notes-app-service
+  namespace: test
+  labels:
+    app: notes-app
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 5000
+    protocol: TCP
+    name: http
+  selector:
+    app: notes-app
+---
+# Service for Production environment
+apiVersion: v1
+kind: Service
+metadata:
+  name: notes-app-service
+  namespace: production
+  labels:
+    app: notes-app
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 5000
+    protocol: TCP
+    name: http
+  selector:
+    app: notes-app

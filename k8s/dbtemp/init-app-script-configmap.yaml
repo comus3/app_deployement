@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: init-app-script
+data:
+  init_app.py: |-
+    import sys
+    from pymongo import MongoClient, errors
+
+    NS_FILE = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    with open(NS_FILE, "r") as f:
+        ns = f.read().strip()
+
+    mongo_uri = f"mongodb://mongos.{ns}.svc.cluster.local:27017"
+    db_name = f"notes_app_{ns}"
+
+    print(f"🚀 Namespace: {ns}")
+    print(f"🔗 URI: {mongo_uri}")
+    print(f"🗄️  Target DB: {db_name}")
+
+    try:
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+        client.admin.command("ping")
+        print("✅ Connected to mongos")
+    except Exception as e:
+        print(f"❌ Cannot connect to mongos: {e}")
+        sys.exit(1)
+
+    db = client[db_name]
+
+    # Create collections if missing
+    wanted = ["Note", "ClickEvent"]
+    existing = set(db.list_collection_names())
+    for coll in wanted:
+        if coll not in existing:
+            db.create_collection(coll)
+            print(f"✅ Created collection: {coll}")
+        else:
+            print(f"ℹ️  Collection already exists: {coll}")
+
+    # Indexes
+    try:
+        db["Note"].create_index("_id", unique=True)
+        print("✅ Index Note._id (unique)")
+    except errors.OperationFailure as e:
+        print(f"ℹ️  Index Note._id exists or skipped: {e}")
+
+    try:
+        db["Note"].create_index("created_at")
+        print("✅ Index Note.created_at")
+    except errors.OperationFailure as e:
+        print(f"ℹ️  Index Note.created_at exists or skipped: {e}")
+
+    # Sharding
+    try:
+        print("⚙️  enableSharding...")
+        client.admin.command("enableSharding", db_name)
+    except errors.OperationFailure as e:
+        if "already enabled" in str(e).lower():
+            print("ℹ️  Sharding already enabled")
+        else:
+            print(f"❌ enableSharding error: {e}")
+            sys.exit(1)
+
+    try:
+        print("⚙️  shardCollection on Note (_id hashed)...")
+        client.admin.command("shardCollection", f"{db_name}.Note", key={"_id": "hashed"})
+    except errors.OperationFailure as e:
+        if "already sharded" in str(e).lower():
+            print("ℹ️  Collection already sharded")
+        else:
+            print(f"❌ shardCollection error: {e}")
+            sys.exit(1)
+
+    print(f"🎉 Initialization complete for DB: {db_name}")
+

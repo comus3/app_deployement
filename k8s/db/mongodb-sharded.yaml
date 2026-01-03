@@ -1,0 +1,177 @@
+# ===============================================
+# MongoDB Sharded + Replicated Cluster (Reusable)
+# ===============================================
+
+# ---------- Config Server ----------
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-configsvr
+spec:
+  ports:
+    - port: 27019
+  selector:
+    role: configsvr
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb-configsvr
+spec:
+  serviceName: mongodb-configsvr
+  replicas: 1
+  selector:
+    matchLabels:
+      role: configsvr
+  template:
+    metadata:
+      labels:
+        role: configsvr
+    spec:
+      containers:
+        - name: mongod
+          image: mongo:7.0
+          command: ["mongod", "--configsvr", "--replSet", "rs-config", "--port", "27019", "--bind_ip_all"]
+          ports:
+            - containerPort: 27019
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+# ---------- Shard 1 ----------
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-shard1
+spec:
+  clusterIP: None
+  ports:
+    - port: 27018
+  selector:
+    shard: shard1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb-shard1
+spec:
+  serviceName: mongodb-shard1
+  replicas: 2
+  selector:
+    matchLabels:
+      shard: shard1
+  template:
+    metadata:
+      labels:
+        shard: shard1
+    spec:
+      containers:
+        - name: mongod
+          image: mongo:7.0
+          command: ["mongod", "--shardsvr", "--replSet", "rs-shard1", "--port", "27018", "--bind_ip_all"]
+          ports:
+            - containerPort: 27018
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+# ---------- Shard 2 ----------
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-shard2
+spec:
+  clusterIP: None
+  ports:
+    - port: 27018
+  selector:
+    shard: shard2
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb-shard2
+spec:
+  serviceName: mongodb-shard2
+  replicas: 2
+  selector:
+    matchLabels:
+      shard: shard2
+  template:
+    metadata:
+      labels:
+        shard: shard2
+    spec:
+      containers:
+        - name: mongod
+          image: mongo:7.0
+          command: ["mongod", "--shardsvr", "--replSet", "rs-shard2", "--port", "27018", "--bind_ip_all"]
+          ports:
+            - containerPort: 27018
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+# ---------- Router (mongos) ----------
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongos
+spec:
+  type: ClusterIP
+  ports:
+    - port: 27017
+  selector:
+    role: mongos
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      role: mongos
+  template:
+    metadata:
+      labels:
+        role: mongos
+    spec:
+      containers:
+        - name: mongos
+          image: mongo:7.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace);
+              echo "🚀 Starting mongos in namespace: $NAMESPACE";
+              mongos --configdb "rs-config/mongodb-configsvr-0.mongodb-configsvr.${NAMESPACE}.svc.cluster.local:27019" --bind_ip_all --port 27017
+          ports:
+            - containerPort: 27017
+
